@@ -105,6 +105,10 @@ llama_model_mimo2::graph::graph(const llama_model & model, const llm_graph_param
     const bool crop_last_layer = inp_out_ids && (!emit_h_nextn || cparams.embeddings_nextn_masked);
 
     for (int il = 0; il < n_layer; ++il) {
+        // residual stream feeding layer il (= output of layer il-1); the DFlash drafter
+        // reads the stream after its extract layer, i.e. t_layer_inp[layer_id + 1]
+        res->t_layer_inp[il] = inpL;
+
         ggml_tensor * inpSA = inpL;
 
         uint32_t n_head_l    = hparams.n_head(il);
@@ -231,6 +235,10 @@ llama_model_mimo2::graph::graph(const llama_model & model, const llm_graph_param
     }
 
     cur = inpL;
+
+    // final pre-norm hidden state (= output of the last layer); DFlash reads it when
+    // its extract layer is the last one (target_layer_id + 1 == n_layer)
+    res->t_layer_inp[n_layer] = cur;
 
     if (emit_h_nextn) {
         cb(cur, "h_nextn", -1);
